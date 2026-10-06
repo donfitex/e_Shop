@@ -1,5 +1,6 @@
 import express from "express";
 import { randomUUID } from "node:crypto";
+import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
 
 const env = process.env;
@@ -7,7 +8,7 @@ const db = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY);
 const SITE = env.SITE_URL || "http://localhost:3000";
 const app = express();
 app.use(express.json());
-app.use(express.static("public"));
+app.use(express.static("dist"));
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const money = (c) => new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN" }).format(c / 100);
@@ -37,10 +38,10 @@ async function sendConfirmation(order, lines) {
   const rows = lines.map((l) => `<tr><td>${esc(l.name)} × ${l.qty}</td><td align="right">${money(l.unit_cents * l.qty)}</td></tr>`).join("");
   const s = order.shipping;
   const pay = order.status === "paid" ? "Paid online" : "Pay on delivery";
-  const html = `<h2>Thanks, ${esc(s.name)} — order received</h2>
+  const html = `<h2>R-Blink</h2><h3>Thanks, ${esc(s.name)} — order received</h3>
     <table cellpadding="6">${rows}<tr><td><b>Total</b></td><td align="right"><b>${money(order.total_cents)}</b></td></tr></table>
     <p>Payment: ${pay}</p><p>Shipping to:<br>${esc(s.name)}<br>${esc(s.address)}<br>${esc(s.city)}</p><p>Order reference: ${order.id}</p>`;
-  const body = new URLSearchParams({ from: env.MAILGUN_FROM, to: order.email, subject: `Order confirmed (#${order.id.slice(0, 8)})`, html });
+  const body = new URLSearchParams({ from: env.MAILGUN_FROM, to: order.email, subject: `R-Blink: order confirmed (#${order.id.slice(0, 8)})`, html });
   const r = await fetch(`${env.MAILGUN_BASE || "https://api.mailgun.net"}/v3/${env.MAILGUN_DOMAIN}/messages`, {
     method: "POST", headers: { Authorization: "Basic " + Buffer.from("api:" + env.MAILGUN_API_KEY).toString("base64") }, body,
   });
@@ -156,11 +157,14 @@ const EXT = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 app.post("/api/admin/upload", auth, adminOnly, express.raw({ type: Object.keys(EXT), limit: "6mb" }), async (req, res) => {
   const type = req.headers["content-type"];
   if (!EXT[type] || !Buffer.isBuffer(req.body) || !req.body.length) return fail(res, "Choose a JPG, PNG or WebP image under 6 MB.", 400);
-  const path = `${randomUUID()}.${EXT[type]}`;
-  const { error } = await db.storage.from("product-images").upload(path, req.body, { contentType: type });
+  const file = `${randomUUID()}.${EXT[type]}`;
+  const { error } = await db.storage.from("product-images").upload(file, req.body, { contentType: type });
   if (error) return fail(res, error);
-  res.json({ url: db.storage.from("product-images").getPublicUrl(path).data.publicUrl });
+  res.json({ url: db.storage.from("product-images").getPublicUrl(file).data.publicUrl });
 });
 
+// React app: any non-API route returns index.html
+app.get("*", (req, res, next) => req.path.startsWith("/api/") ? next() : res.sendFile(path.resolve("dist", "index.html"), (e) => e && res.status(503).send("Run `npm run build` first.")));
+
 app.use((err, _req, res, _next) => fail(res, err.status === 413 ? "Image is larger than 6 MB." : "Server error", err.status || 500));
-app.listen(env.PORT || 3000, () => console.log("Phone Mart running on http://localhost:" + (env.PORT || 3000)));
+app.listen(env.PORT || 3000, () => console.log("R-Blink running on http://localhost:" + (env.PORT || 3000)));
