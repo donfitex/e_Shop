@@ -3,7 +3,7 @@
 ## Run locally
 1. `npm install`
 2. Copy `.env.example` to `.env` and fill it in (Supabase, Mailgun, ADMIN_EMAILS, optional Paystack and WhatsApp number).
-3. In the Supabase SQL editor run, in order: `schema.sql`, `phones_migration.sql`, `store_upgrade.sql` (skip any you already ran).
+3. In the Supabase SQL editor run `supabase/migrations/20261011000100_baseline.sql` (safe even if you ran the old SQL files). Then `npm run check` and `npm test`. See `docs/setup-and-migrations.md`.
 4. `npm run dev` then open http://localhost:5173 (React with hot reload, API on port 3000).
    In Supabase → Authentication → URL Configuration, add `http://localhost:5173/**` to Redirect URLs.
 5. To test Paystack or the production build: `npm run build`, then `npm start` and open http://localhost:3000.
